@@ -419,8 +419,8 @@ function viewEditor(v){
   d.exs.forEach((e,i)=>{h+=editorCard(e,i,d)});
   h+=`<div class="card stack"><button class="btn" id="addex">+ Adicionar exercício</button>${S.addOpen?exPicker('add'):''}</div>
   <button class="btn primary" id="finish">${isEdit?'Salvar alterações':'Finalizar treino'}</button>
-  <button class="btn danger" id="discard">${isEdit?'Cancelar edição':'Descartar treino'}</button></div>`;
-  v.innerHTML=h; bindEditor(v);
+  <button class="btn danger" id="discard">${isEdit?'Cancelar edição':'Descartar treino'}</button>${isEdit?'':cardioCard(todayISO())}</div>`;
+  v.innerHTML=h; bindEditor(v); if(!isEdit) bindCardio(v);
 }
 function editorCard(e,i,d){
   const tg=computeTarget({ex:e.ex,sets:e.plan?.sets||e.sets.length,reps:e.plan?.reps||'6~10',pf:e.plan?.pf},d.gym,d.date,d.wt);
@@ -625,7 +625,7 @@ function viewAjustes(v){
   <div class="list">${pr[sd].items.map((it,i)=>`<div class="li" style="flex-wrap:wrap"><div style="flex:1 1 200px;min-width:0"><b>${esc(exName(it.ex))}</b></div><div class="row"><input data-ps="${i}" value="${it.sets}" inputmode="numeric" style="width:48px" aria-label="Séries"><input data-pr="${i}" value="${esc(it.reps)}" style="width:70px" aria-label="Reps"><label class="tiny"><input type="checkbox" data-ppf="${i}" ${it.pf?'checked':''}> PF</label><button class="btn sm ghost" data-pup="${i}" aria-label="Subir">↑</button><button class="btn sm ghost" data-prm="${i}" aria-label="Remover">✕</button></div></div>`).join('')}</div>
   <button class="btn" id="paddbtn">+ Exercício no ${esc(sd)}</button>${S.paddOpen?exPicker('prog'):''}
   <button class="btn primary" id="saveprog">Salvar programa</button></div>
-  <div class="card stack"><h3>Backup</h3><div class="small muted">Seus dados ficam guardados neste iPhone. Exporte um backup de vez em quando (Arquivos, iCloud Drive ou WhatsApp) para não perder nada se trocar de aparelho.</div><button class="btn" id="export">Exportar backup (.json)</button><label class="btn" for="import" style="text-align:center">Importar backup (.json)</label><input type="file" id="import" accept=".json,application/json" hidden><div class="tiny muted">Importar junta o arquivo com o que já está aqui; treinos com o mesmo identificador são substituídos pelos do arquivo.</div></div></div>`;
+  <div class="card stack"><h3>Backup</h3><div class="small muted">Versão ${APP_VERSION}. Seus dados ficam guardados neste iPhone. Exporte um backup de vez em quando (Arquivos, iCloud Drive ou WhatsApp) para não perder nada se trocar de aparelho.</div><button class="btn" id="export">Exportar backup (.json)</button><label class="btn" for="import" style="text-align:center">Importar backup (.json)</label><input type="file" id="import" accept=".json,application/json" hidden><div class="tiny muted">Importar junta o arquivo com o que já está aqui; treinos com o mesmo identificador são substituídos pelos do arquivo.</div></div></div>`;
   v.innerHTML=h;
   $('#curwt').onchange=e=>saveCfg({anchorMon:monday(t),anchorPos:CYCLE.indexOf(e.target.value),weekTypesHist:{...(S.cfg.weekTypesHist||{}),...histUntil(monday(t))}});
   const G=JSON.parse(JSON.stringify(gyms()));
@@ -657,7 +657,13 @@ function histUntil(mon){ // freeze computed week types for past weeks before re-
 }
 
 boot();
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+const APP_VERSION='2026-11-16c';
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}))}
+async function checkUpdate(){ try{ const r=await fetch('version.json?'+Date.now(),{cache:'no-store'}); const j=await r.json();
+  if(j.v&&j.v!==APP_VERSION){ const reg=await navigator.serviceWorker?.getRegistration(); if(reg) await reg.update().catch(()=>{});
+    let k='reloadedFor';try{if(sessionStorage.getItem(k)===j.v)return;sessionStorage.setItem(k,j.v)}catch(e){} if(S.editing&&S.draft){ await saveDraftNow() } location.reload() } }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') checkUpdate() });
+setTimeout(checkUpdate,1500);
 })();
 </script>
 
