@@ -159,7 +159,7 @@ const TYPE_RULE={
   choque:'+1 série nos pontos fracos. Mire +1 rep sobre a última ordinária/choque.',
   estabilizadora:'Mesmo peso, 2 reps a menos que a última ordinária/choque.',
   deload:'1 série a menos e 2 reps a menos. Objetivo: recuperar.'};
-const DEFAULT_GYMS=[{id:'24h',name:'24h (unidade não informada)'},{id:'24h-santana',name:'24h Santana'},{id:'24h-vilamaria',name:'24h Vila Maria'},{id:'24h-tremembe',name:'24h Tremembé'},{id:'24h-pirituba',name:'24h Pirituba'},{id:'k2',name:'K2'},{id:'c4',name:'C4'},{id:'v4',name:'V4'},{id:'skyfit',name:'Skyfit'},{id:'casa',name:'Casa'}];
+const DEFAULT_GYMS=[{id:'24h',name:'24h Trimais'},{id:'24h-santana',name:'24h Santana'},{id:'24h-vilamaria',name:'24h Vila Maria'},{id:'24h-tremembe',name:'24h Tremembé'},{id:'24h-pirituba',name:'24h Pirituba'},{id:'k2',name:'K2'},{id:'c4',name:'C4'},{id:'v4',name:'V4'},{id:'skyfit',name:'Skyfit'},{id:'casa',name:'Casa'}];
 const LIB=[
 ['agach_highbar','Agachamento livre high bar','Quadríceps'],['agach_livre','Agachamento livre low bar','Quadríceps'],['agach_smith','Agachamento no smith','Quadríceps'],['agach_pausado','Agachamento pausado','Quadríceps'],['leg_press','Leg press 45','Quadríceps'],['hack','Hack squat','Quadríceps'],['extensora','Cadeira extensora unilateral','Quadríceps'],
 ['flexora_cadeira','Cadeira flexora unilateral','Posterior'],['flexora_vertical','Flexora vertical unilateral (em pé)','Posterior'],['flexora_deitada','Mesa flexora','Posterior'],['nordica','Flexão nórdica','Posterior'],['ext_coluna','Extensão de quadril/coluna no banco romano (GHD)','Posterior'],['terra','Levantamento terra','Posterior'],['stiff','Stiff','Posterior'],
@@ -197,7 +197,7 @@ const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.par
 function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2200)}
 
 /* ---------- config helpers ---------- */
-const gyms=()=>S.cfg.gyms||DEFAULT_GYMS;
+const gyms=()=>(S.cfg.gyms||DEFAULT_GYMS).map(g=>g.id==='24h'&&/não informada/.test(g.name)?{...g,name:'24h Trimais'}:g);
 const gymName=id=>(gyms().find(g=>g.id===id)||{name:id||'?'}).name;
 const program=()=>S.cfg.program||DEFAULT_PROGRAM;
 const exName=id=>EXN[id]||(S.cfg.customEx||{})[id]?.name||id;
