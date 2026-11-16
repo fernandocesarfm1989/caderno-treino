@@ -119,6 +119,8 @@ textarea{width:100%;resize:vertical;min-height:62px}
 .st-down{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
 .banner{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1.5px dashed var(--accent);border-radius:12px;padding:12px 14px}
 .weighin{display:flex;gap:8px;align-items:center}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}.cgrid input,.cgrid select{width:100%;box-sizing:border-box}.cgrid .wide{grid-column:1/-1}
+.cdots{display:flex;gap:6px}.cdots span{width:14px;height:14px;border-radius:50%;border:2px solid var(--line)}.cdots span.on{background:var(--ink);border-color:var(--ink)}
 .weighin input{font-family:var(--display);font-size:28px;font-weight:700;width:120px;text-align:center}
 details summary{cursor:pointer;list-style:none}
 details summary::-webkit-details-marker{display:none}
@@ -181,7 +183,7 @@ const DEFAULT_PROGRAM={
 const PHASES=[['2025-08-25','Antes do plano'],['2026-04-20','Mens Physique 1'],['2026-06-01','Mens Physique 2'],['2026-06-08','Mens Physique 3'],['2026-08-05','Mens Physique 4']];
 
 /* ---------- state ---------- */
-const S={cfg:{},hist:{},sess:{},wdocs:{},db:null,tab:'hoje',prog:{ex:null,metric:'e1rm',group:'session',gym:''},histOpen:null,swap:null,addOpen:false,wRange:90};
+const S={cfg:{},hist:{},sess:{},wdocs:{},cardio:{},cardioOpen:false,db:null,tab:'hoje',prog:{ex:null,metric:'e1rm',group:'session',gym:''},histOpen:null,swap:null,addOpen:false,wRange:90};
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*6e4);return z.toISOString().slice(0,10)};
@@ -275,7 +277,7 @@ function LocalDB(){
     doc:p=>({get:async()=>{await ready;return snapDoc(p)},set:async d=>{mem[p]=JSON.parse(JSON.stringify(d));await persist(p,mem[p]);fire(p.split('/')[0])},delete:async()=>{delete mem[p];await persist(p,undefined);fire(p.split('/')[0])},onSnapshot:f=>{subs.push([p,f,true]);ready.then(()=>f(snapDoc(p)));return()=>{}}}),
     collection:c=>({onSnapshot:f=>{subs.push([c,f,false]);ready.then(()=>f(qs(c)));return()=>{}}}),
     _all:async()=>{await ready;return {...mem}},
-    _putMany:async(obj)=>{await ready;for(const [k,v] of Object.entries(obj)){mem[k]=v;await persist(k,v)}['cfg','hist','sessions','weights'].forEach(fire)}
+    _putMany:async(obj)=>{await ready;for(const [k,v] of Object.entries(obj)){mem[k]=v;await persist(k,v)}['cfg','hist','sessions','weights','cardio'].forEach(fire)}
   };
   return api;
 }
@@ -288,11 +290,12 @@ async function boot(){
   try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
   S.db=db; S._rev=0;
   const timer=setTimeout(()=>{if(!S.loaded){toast('Conexão lenta: os dados podem estar desatualizados')}},10000);
-  let pending=4; const done=()=>{if(--pending<=0&&!S.loaded){S.loaded=true;clearTimeout(timer);resumeDraft();route()}};
+  let pending=5; const done=()=>{if(--pending<=0&&!S.loaded){S.loaded=true;clearTimeout(timer);resumeDraft();route()}};
   const err=e=>{console.warn(e);toast('Não consegui ler os dados ('+(e.code||'erro')+')')};
   let h0=false;db.doc('cfg/main').onSnapshot(s=>{S.cfg=s.exists?s.data():{};S._rev++;if(!h0){h0=true;done()}else if(S.loaded&&!S.editing)route()},err);
   let h1=false;db.collection('hist').onSnapshot(q=>{S.hist={};q.docs.forEach(d=>S.hist[d.id]=d.data());S._rev++;if(!h1){h1=true;done()}else if(S.loaded)route()},err);
   let h2=false;db.collection('sessions').onSnapshot(q=>{S.sess={};q.docs.forEach(d=>S.sess[d.id]=d.data());S._rev++;if(!h2){h2=true;done()}else if(S.loaded&&!S.editing)route()},err);
+  let h4=false;db.collection('cardio').onSnapshot(q=>{S.cardio={};q.docs.forEach(d=>S.cardio[d.id]=d.data());S._rev++;if(!h4){h4=true;done()}else if(S.loaded&&!S.editing)route()},err);
   let h3=false;db.collection('weights').onSnapshot(q=>{S.wdocs={};q.docs.forEach(d=>S.wdocs[d.id]=d.data());S._rev++;if(!h3){h3=true;done()}else if(S.loaded&&!S.editing)route()},err);
 }
 async function saveCfg(patch){ S.cfg={...S.cfg,...patch}; try{await S.db.doc('cfg/main').set(S.cfg);toast('Salvo')}catch(e){toast('Não salvou: '+(e.code||e.message))} route() }
@@ -344,12 +347,50 @@ function viewHoje(v){
   <div><div class="label">Academia de hoje</div><div class="seg" id="gymseg" style="margin-top:6px">${gyms().map(g=>`<button data-gym="${g.id}" class="${g.id===gym?'on':''}">${esc(g.name)}</button>`).join('')}</div></div>
   <div><div class="label">Treino</div><div class="seg" id="dayseg" style="margin-top:6px">${Object.entries(program()).map(([k,p])=>`<button data-day="${k}" class="${k===day?'on':''}">${esc(p.name.split('·')[0].trim())}</button>`).join('')}</div></div>
   <button class="btn primary" id="start">Começar ${esc(pr.name)}</button></div>
+  ${cardioCard(t)}
   <h3 style="margin-top:6px">${esc(pr.name)} · metas na ${esc(gymName(gym))}</h3>`;
   for(const it of pr.items){ const tg=computeTarget(it,gym,t,wt); h+=planCard(it,tg) }
   h+='</div>'; v.innerHTML=h;
   v.querySelectorAll('[data-gym]').forEach(b=>b.onclick=()=>{ls.set('gym',b.dataset.gym);route()});
   v.querySelectorAll('[data-day]').forEach(b=>b.onclick=()=>{S.pendDay=b.dataset.day;route()});
   $('#start').onclick=()=>startSession(day,gym);
+  bindCardio(v);
+}
+/* ---------- cardio ---------- */
+const CARDIO_KINDS=['Caminhada inclinada','Esteira','Bike','Escada','Elíptico','Corrida','Outro'];
+function cardioList(){return Object.entries(S.cardio).filter(([id,c])=>c&&!c.deleted&&c.date).map(([id,c])=>({...c,id})).sort((a,b)=>(b.date+(b.t||'')).localeCompare(a.date+(a.t||'')))}
+function cardioCard(t){
+  const goal=S.cfg.cardioGoal||4, mon=monday(t), all=cardioList(), wk=all.filter(c=>monday(c.date)===mon), last=all[0]||{};
+  const pf=S.cardioPrefill||{};
+  const totMin=wk.reduce((a,c)=>a+(c.min||0),0), bpms=wk.filter(c=>c.bpm), avgB=bpms.length?Math.round(bpms.reduce((a,c)=>a+c.bpm,0)/bpms.length):null;
+  const li=c=>`<div class="li"><span>${fmtDL(c.date)}<span class="tiny muted"> · ${esc(c.kind||'Cardio')}${c.incl!=null?' · '+f1(c.incl)+'%':''}${c.speed!=null?' · '+f1(c.speed)+' km/h':''}</span>${c.note?`<div class="tiny muted">${esc(c.note)}</div>`:''}</span><span style="white-space:nowrap"><b>${c.min??'–'} min</b>${c.bpm?' · '+c.bpm+' bpm':''} <button class="btn sm ghost" data-cdel="${c.id}" aria-label="Apagar">✕</button></span></div>`;
+  const form=S.cardioOpen?`<div class="cgrid" style="margin-top:4px">
+    <label class="wide">Tipo<select id="ckind">${CARDIO_KINDS.map(k=>`<option ${k===(last.kind||CARDIO_KINDS[0])?'selected':''}>${k}</option>`).join('')}</select></label>
+    <label>Tempo (min)<input id="cmin" inputmode="numeric" value="${pf.min??''}" placeholder="${last.min||40}"></label>
+    <label>BPM médio<input id="cbpm" inputmode="numeric" value="${pf.bpm??''}" placeholder="${last.bpm||'ex.: 125'}"></label>
+    <label>Inclinação (%)<input id="cincl" inputmode="decimal" value="${last.incl!=null?f1(last.incl):''}" placeholder="10"></label>
+    <label>Velocidade (km/h)<input id="cspeed" inputmode="decimal" value="${last.speed!=null?f1(last.speed):''}" placeholder="5,5"></label>
+    <label>Data<input id="cdate" type="date" value="${t}"></label>
+    <label>Observação<input id="cnote" placeholder="opcional"></label>
+    ${pf.min!=null?`<div class="tiny muted wide">Valores do Apple Watch colados. Confira e salve.</div>`:''}<button class="btn primary wide" id="csave">Salvar cardio</button></div>`:`<div class="row" style="gap:8px"><button class="btn" id="copen" style="flex:1">Check-in de cardio</button><button class="btn" id="cpaste" style="flex:1">Colar do Apple Watch</button></div>`;
+  return `<div class="card stack"><div class="row between"><div><div class="label">Cardio da semana</div><h3 style="margin:2px 0 0">${wk.length}/${goal}${wk.length>=goal?' ✓':''}</h3></div><div class="cdots" aria-hidden="true">${Array.from({length:Math.max(goal,wk.length)},(_,i)=>`<span class="${i<wk.length?'on':''}"></span>`).join('')}</div></div>
+  ${wk.length?`<div class="small muted">${totMin} min no total${avgB?' · BPM médio '+avgB:''}</div><div class="list">${wk.map(li).join('')}</div>`:''}
+  ${form}</div>`;
+}
+function bindCardio(v){
+  const o=$('#copen',v); if(o) o.onclick=()=>{S.cardioOpen=true;route();setTimeout(()=>{const m=$('#cmin');m&&m.focus()},50)};
+  const ps=$('#cpaste',v); if(ps) ps.onclick=async()=>{ let txt=''; try{txt=await navigator.clipboard.readText()}catch(e){toast('O iPhone não deixou colar. Toque em "Permitir colar".');return}
+    const m=/min\s*=\s*(\d+(?:[.,]\d+)?)/i.exec(txt), b=/bpm\s*=\s*(\d+(?:[.,]\d+)?)/i.exec(txt);
+    if(!m&&!b){toast('Não achei dados do Atalho. Rode o Atalho "Cardio do Watch" antes.');return}
+    S.cardioPrefill={min:m?Math.round(num(m[1])):null,bpm:b?Math.round(num(b[1])):null}; S.cardioOpen=true; route(); };
+  const sv=$('#csave',v); if(sv) sv.onclick=async()=>{
+    const min=num($('#cmin').value)??num($('#cmin').placeholder), bpm=num($('#cbpm').value);
+    if(!min||min<=0||min>600){toast('Digite o tempo em minutos');return}
+    if(bpm!=null&&(bpm<40||bpm>230)){toast('BPM médio parece errado');return}
+    const c={date:$('#cdate').value||todayISO(),t:new Date().toTimeString().slice(0,5),kind:$('#ckind').value,min:Math.round(min),bpm:bpm==null?null:Math.round(bpm),incl:num($('#cincl').value),speed:num($('#cspeed').value),note:$('#cnote').value.trim()};
+    try{await S.db.doc('cardio/c'+Date.now()).set(c);S.cardioOpen=false;S.cardioPrefill=null;toast('Cardio registrado')}catch(e){toast('Não salvou: '+(e.code||e.message))} route();
+  };
+  v.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=async()=>{ if(!confirm('Apagar este cardio?'))return; try{await S.db.doc('cardio/'+b.dataset.cdel).delete()}catch(e){toast('Não apagou')} route() });
 }
 function targetHTML(tg){
   if(!tg.ref) return `<div class="target"><div class="why" style="grid-column:1/-1">${esc(tg.msg)}</div></div>`;
@@ -562,6 +603,7 @@ async function importBackup(j){
   const w=j.weights||{}; const wm={};
   for(const [day,arr] of Object.entries(w)){ const k='w-'+day.slice(0,7); const doc=wm[k]=wm[k]||JSON.parse(JSON.stringify(S.wdocs[k]||{month:day.slice(0,7),days:{}})); const have=new Set((doc.days[day]||[]).map(x=>x.t+'|'+x.kg)); doc.days[day]=(doc.days[day]||[]).concat(arr.filter(x=>!have.has(x.t+'|'+x.kg))) }
   Object.entries(wm).forEach(([k,v])=>put['weights/'+k]=v);
+  (Array.isArray(j.cardio)?j.cardio:[]).forEach(c=>{if(c&&c.id&&c.date){const {id,...b}=c;put['cardio/'+id]=b}});
   await S.db._putMany(put); S._rev++; route();
   return sess.length;
 }
@@ -603,7 +645,7 @@ function viewAjustes(v){
   const pq=$('#pickq'); if(pq){pq.oninput=()=>{S.pickQ=pq.value;const pos=pq.selectionStart;route();const n=$('#pickq');n.focus();n.setSelectionRange(pos,pos)}}
   v.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{PR[sd].items.push({ex:b.dataset.pick,sets:2,reps:'6~10',pf:false});S.paddOpen=false;S.pickQ='';saveCfg({program:PR})});
   $('#saveprog').onclick=()=>saveCfg({program:PR});
-  $('#export').onclick=async()=>{ const data=JSON.stringify({app:'caderno-treino',v:1,exportedAt:new Date().toISOString(),cfg:S.cfg,sessions:allSessions(),weights:weightDays()});
+  $('#export').onclick=async()=>{ const data=JSON.stringify({app:'caderno-treino',v:1,exportedAt:new Date().toISOString(),cfg:S.cfg,sessions:allSessions(),weights:weightDays(),cardio:cardioList()});
     const file=new File([data],'treino-backup-'+t+'.json',{type:'application/json'});
     try{ if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Backup do treino'});return} }catch(e){if(e.name==='AbortError')return}
     const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000) };
