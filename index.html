@@ -153,7 +153,7 @@ table.tbl td,table.tbl th{padding:6px 8px;border-top:1px solid var(--line);text-
 <script>
 (()=>{
 /* ---------- constants ---------- */
-const APP_VERSION='2026-11-17b';
+const APP_VERSION='2026-11-17c';
 const TYPES={ordinaria:'Ordinária',ordinaria2:'Ordinária',choque:'Choque',estabilizadora:'Estabilizadora',deload:'Deload'};
 const CYCLE=['ordinaria','choque','estabilizadora','ordinaria2','deload'];
 const TYPE_RULE={
@@ -243,10 +243,14 @@ function stepFor(ex){const g=exGroup(ex);return /Peito|Ombro|Bíceps|Tríceps/.t
 function computeTarget(item,gym,date,wtOverride){
   const ex=item.ex, wt=wtOverride||weekType(date), thisMon=monday(date);
   const [lo,hi]=rangeOf(item);
+  const isRef=e=>['ordinaria','ordinaria2','choque'].includes(e.wt);
   let hist=entriesFor(ex,gym).filter(e=>!e.mr&&monday(e.date)<thisMon), other=false;
-  if(!hist.length){hist=entriesFor(ex,null).filter(e=>!e.mr&&monday(e.date)<thisMon);other=hist.length>0}
+  const histAll=entriesFor(ex,null).filter(e=>!e.mr&&monday(e.date)<thisMon);
+  const refSame=hist.find(isRef)||hist[0]||null, refAll=histAll.find(isRef)||histAll[0]||null;
+  // use this gym's history only if it is recent; otherwise the latest work anywhere is the better base
+  if(!refSame || (refAll && refAll.gym!==gym && (parseD(refAll.date)-parseD(refSame.date))>21*864e5)){ hist=histAll; other=!!refAll&&refAll.gym!==gym }
   const last=hist[0]||null;
-  const ref=hist.find(e=>['ordinaria','ordinaria2','choque'].includes(e.wt))||last;
+  const ref=hist.find(isRef)||last;
   let sets=item.sets||2;
   if(wt==='choque'&&item.pf) sets+=1;
   if(wt==='deload') sets=Math.max(1,sets-1);
