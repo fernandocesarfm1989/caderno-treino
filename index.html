@@ -153,7 +153,7 @@ table.tbl td,table.tbl th{padding:6px 8px;border-top:1px solid var(--line);text-
 <script>
 (()=>{
 /* ---------- constants ---------- */
-const APP_VERSION='2026-11-17d';
+const APP_VERSION='2026-11-17e';
 const TYPES={ordinaria:'Ordinária',ordinaria2:'Ordinária',choque:'Choque',estabilizadora:'Estabilizadora',deload:'Deload'};
 const CYCLE=['ordinaria','choque','estabilizadora','ordinaria2','deload'];
 const TYPE_RULE={
@@ -362,7 +362,8 @@ function viewHoje(v){
   let gym=ls.get('gym','24h'); if(!gyms().some(g=>g.id===gym)) gym=(gyms()[0]||{id:'24h'}).id; let day=S.pendDay||pickDay(); if(!program()[day]) day=Object.keys(program())[0]; const pr=program()[day]||{items:[]};
   const wd=weightDays();
   const wb=wd[t]?'':`<div class="banner"><div><div class="label">Peso em jejum</div><div class="small">Ainda sem registro hoje</div></div><a class="btn sm primary" href="#peso">Registrar</a></div>`;
-  let h=`<div class="stack">${wb}
+  const bb=S.loaded&&backupDue()?`<div class="banner"><div><div class="label">Backup da semana</div><div class="small">${S.cfg.lastBackup?'Último: '+fmtD(S.cfg.lastBackup):'Nenhum backup ainda'}. Salve em iCloud Drive › Treino.</div></div><button class="btn sm primary" id="bkp">Fazer backup</button></div>`:'';
+  let h=`<div class="stack">${wb}${bb}
   <div class="card stack"><div><div class="label">Semana</div><div class="row" style="margin-top:4px"><span class="pill t-${wt}"><span class="plate t-${wt}"></span>${TYPES[wt]}</span><span class="small muted">${esc(TYPE_RULE[wt])}</span></div></div>
   <div><div class="label">Academia de hoje</div><select id="gymsel" style="width:100%;margin-top:6px">${gyms().map(g=>`<option value="${g.id}" ${g.id===gym?'selected':''}>${esc(g.name)}</option>`).join('')}</select></div>
   <div><div class="row between"><div class="label">Treino de hoje</div><a class="tiny" href="#ajustes" id="editprog">Editar treinos</a></div><div class="seg" id="dayseg" style="margin-top:6px">${Object.entries(program()).map(([k,p])=>`<button data-day="${k}" class="${k===day?'on':''}">${esc(p.name.split('·')[0].trim())}</button>`).join('')}</div></div>
@@ -375,8 +376,16 @@ function viewHoje(v){
   $('#editprog').onclick=()=>{S.focusProg=true};
   v.querySelectorAll('[data-day]').forEach(b=>b.onclick=()=>{S.pendDay=b.dataset.day;route()});
   $('#start').onclick=()=>startSession(day,gym);
+  const bk=$('#bkp'); if(bk) bk.onclick=doExport;
   bindCardio(v);
 }
+/* ---------- backup ---------- */
+async function markBackup(){ S.cfg={...S.cfg,lastBackup:todayISO()}; try{await S.db.doc('cfg/main').set(S.cfg)}catch(e){} }
+async function doExport(){ const t=todayISO(); const data=JSON.stringify({app:'caderno-treino',v:1,exportedAt:new Date().toISOString(),cfg:S.cfg,sessions:allSessions(),weights:weightDays(),cardio:cardioList()});
+  const file=new File([data],'treino-backup-'+t+'.json',{type:'application/json'});
+  try{ if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Backup do treino'});await markBackup();toast('Backup feito');route();return} }catch(e){if(e.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000); await markBackup(); route() }
+function backupDue(){ const last=S.cfg.lastBackup, t=todayISO(); if(last===t) return false; const days=last?Math.round((parseD(t)-parseD(last))/864e5):99; return parseD(t).getDay()===0||days>=7 }
 /* ---------- cardio ---------- */
 const CARDIO_KINDS=['Caminhada inclinada','Esteira','Bike','Escada','Elíptico','Corrida','Outro'];
 function cardioList(){return Object.entries(S.cardio).filter(([id,c])=>c&&!c.deleted&&c.date).map(([id,c])=>({...c,id})).sort((a,b)=>(b.date+(b.t||'')).localeCompare(a.date+(a.t||'')))}
@@ -662,7 +671,7 @@ function viewAjustes(v){
   <div class="list">${pr[sd].items.map((it,i)=>`<div class="li" style="flex-wrap:wrap"><div style="flex:1 1 200px;min-width:0"><b>${esc(exName(it.ex))}</b></div><div class="row"><input data-ps="${i}" value="${it.sets}" inputmode="numeric" style="width:48px" aria-label="Séries"><input data-pr="${i}" value="${esc(it.reps)}" style="width:70px" aria-label="Reps"><label class="tiny"><input type="checkbox" data-ppf="${i}" ${it.pf?'checked':''}> PF</label><button class="btn sm ghost" data-pup="${i}" aria-label="Subir">↑</button><button class="btn sm ghost" data-prm="${i}" aria-label="Remover">✕</button></div></div>`).join('')}</div>
   <button class="btn" id="paddbtn">+ Exercício no ${esc(sd)}</button>${S.paddOpen?exPicker('prog'):''}
   <button class="btn primary" id="saveprog">Salvar programa</button><button class="btn danger" id="delday">Excluir o treino ${esc(sd)}</button></div>
-  <div class="card stack"><h3>Backup</h3><div class="small muted">Versão ${APP_VERSION}. Seus dados ficam guardados neste iPhone. Exporte um backup de vez em quando (Arquivos, iCloud Drive ou WhatsApp) para não perder nada se trocar de aparelho.</div><button class="btn" id="export">Exportar backup (.json)</button><label class="btn" for="import" style="text-align:center">Importar backup (.json)</label><input type="file" id="import" accept=".json,application/json" hidden><div class="tiny muted">Importar junta o arquivo com o que já está aqui; treinos com o mesmo identificador são substituídos pelos do arquivo.</div></div></div>`;
+  <div class="card stack"><h3>Backup</h3><div class="small muted">Versão ${APP_VERSION}. Último backup: ${S.cfg.lastBackup?fmtD(S.cfg.lastBackup):'nenhum'}. Seus dados ficam guardados neste iPhone. Exporte um backup de vez em quando (Arquivos, iCloud Drive ou WhatsApp) para não perder nada se trocar de aparelho.</div><button class="btn" id="export">Exportar backup (.json)</button><label class="btn" for="import" style="text-align:center">Importar backup (.json)</label><input type="file" id="import" accept=".json,application/json" hidden><div class="tiny muted">Importar junta o arquivo com o que já está aqui; treinos com o mesmo identificador são substituídos pelos do arquivo.</div></div></div>`;
   v.innerHTML=h;
   $('#curwt').onchange=e=>saveCfg({anchorMon:monday(t),anchorPos:CYCLE.indexOf(e.target.value),weekTypesHist:{...(S.cfg.weekTypesHist||{}),...histUntil(monday(t))}});
   const G=JSON.parse(JSON.stringify(gyms()));
@@ -687,10 +696,7 @@ function viewAjustes(v){
   $('#newday').onclick=()=>{let c='E';const ks=Object.keys(PR);for(const L of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'){if(!ks.includes(L)){c=L;break}}PR[c]={name:c+' · Treino '+c,items:[]};S.setDay=c;saveCfg({program:PR})};
   const dd=$('#delday'); dd.onclick=()=>{ if(Object.keys(PR).length<=1){toast('Precisa ter pelo menos um treino');return} if(!dd.dataset.armed){dd.dataset.armed=1;dd.textContent='Toque de novo para excluir '+sd;return} delete PR[sd];S.setDay=null;saveCfg({program:PR}) };
   if(S.focusProg){S.focusProg=false;setTimeout(()=>{const c=$('#progcard');c&&c.scrollIntoView({block:'start'})},50)}
-  $('#export').onclick=async()=>{ const data=JSON.stringify({app:'caderno-treino',v:1,exportedAt:new Date().toISOString(),cfg:S.cfg,sessions:allSessions(),weights:weightDays(),cardio:cardioList()});
-    const file=new File([data],'treino-backup-'+t+'.json',{type:'application/json'});
-    try{ if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Backup do treino'});return} }catch(e){if(e.name==='AbortError')return}
-    const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000) };
+  $('#export').onclick=doExport;
   $('#import').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); const n=await importBackup(j); toast(n+' treinos importados'); }catch(err){ toast('Arquivo inválido: '+err.message) } e.target.value=''; };
 }
 function histUntil(mon){ // freeze computed week types for past weeks before re-anchoring
