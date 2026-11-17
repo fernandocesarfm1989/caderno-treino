@@ -153,6 +153,7 @@ table.tbl td,table.tbl th{padding:6px 8px;border-top:1px solid var(--line);text-
 <script>
 (()=>{
 /* ---------- constants ---------- */
+const APP_VERSION='2026-11-17a';
 const TYPES={ordinaria:'Ordinária',ordinaria2:'Ordinária',choque:'Choque',estabilizadora:'Estabilizadora',deload:'Deload'};
 const CYCLE=['ordinaria','choque','estabilizadora','ordinaria2','deload'];
 const TYPE_RULE={
@@ -339,19 +340,20 @@ function pickDay(){const dow=new Date().getDay();const pr=program();const k=Obje
 function viewHoje(v){
   if(S.draft) return viewEditor(v);
   const t=todayISO(), wt=weekType(t);
-  const gym=ls.get('gym','24h'); const day=S.pendDay||pickDay(); const pr=program()[day]||{items:[]};
+  let gym=ls.get('gym','24h'); if(!gyms().some(g=>g.id===gym)) gym=(gyms()[0]||{id:'24h'}).id; let day=S.pendDay||pickDay(); if(!program()[day]) day=Object.keys(program())[0]; const pr=program()[day]||{items:[]};
   const wd=weightDays();
   const wb=wd[t]?'':`<div class="banner"><div><div class="label">Peso em jejum</div><div class="small">Ainda sem registro hoje</div></div><a class="btn sm primary" href="#peso">Registrar</a></div>`;
   let h=`<div class="stack">${wb}
   <div class="card stack"><div><div class="label">Semana</div><div class="row" style="margin-top:4px"><span class="pill t-${wt}"><span class="plate t-${wt}"></span>${TYPES[wt]}</span><span class="small muted">${esc(TYPE_RULE[wt])}</span></div></div>
-  <div><div class="label">Academia de hoje</div><div class="seg" id="gymseg" style="margin-top:6px">${gyms().map(g=>`<button data-gym="${g.id}" class="${g.id===gym?'on':''}">${esc(g.name)}</button>`).join('')}</div></div>
-  <div><div class="label">Treino</div><div class="seg" id="dayseg" style="margin-top:6px">${Object.entries(program()).map(([k,p])=>`<button data-day="${k}" class="${k===day?'on':''}">${esc(p.name.split('·')[0].trim())}</button>`).join('')}</div></div>
+  <div><div class="label">Academia de hoje</div><select id="gymsel" style="width:100%;margin-top:6px">${gyms().map(g=>`<option value="${g.id}" ${g.id===gym?'selected':''}>${esc(g.name)}</option>`).join('')}</select></div>
+  <div><div class="row between"><div class="label">Treino de hoje</div><a class="tiny" href="#ajustes" id="editprog">Editar treinos</a></div><div class="seg" id="dayseg" style="margin-top:6px">${Object.entries(program()).map(([k,p])=>`<button data-day="${k}" class="${k===day?'on':''}">${esc(p.name.split('·')[0].trim())}</button>`).join('')}</div></div>
   <button class="btn primary" id="start">Começar ${esc(pr.name)}</button></div>
   ${cardioCard(t)}
   <h3 style="margin-top:6px">${esc(pr.name)} · metas na ${esc(gymName(gym))}</h3>`;
   for(const it of pr.items){ const tg=computeTarget(it,gym,t,wt); h+=planCard(it,tg) }
   h+='</div>'; v.innerHTML=h;
-  v.querySelectorAll('[data-gym]').forEach(b=>b.onclick=()=>{ls.set('gym',b.dataset.gym);route()});
+  $('#gymsel').onchange=e=>{ls.set('gym',e.target.value);route()};
+  $('#editprog').onclick=()=>{S.focusProg=true};
   v.querySelectorAll('[data-day]').forEach(b=>b.onclick=()=>{S.pendDay=b.dataset.day;route()});
   $('#start').onclick=()=>startSession(day,gym);
   bindCardio(v);
@@ -415,7 +417,9 @@ function startSession(day,gym){
 }
 function viewEditor(v){
   S.editing=true; const d=S.draft; const isEdit=!!d.editOf;
-  let h=`<div class="stack"><div class="card"><div class="row between"><div><div class="label">${isEdit?'Editando treino':'Treino em andamento'}</div><h3>${esc((program()[d.day]||{name:d.day||'Treino'}).name)}</h3><div class="small muted">${fmtDL(d.date)} · ${esc(gymName(d.gym))} · <span class="plate t-${d.wt}"></span>${TYPES[d.wt]}</div></div></div></div>`;
+  let h=`<div class="stack"><div class="card"><div class="row between"><div><div class="label">${isEdit?'Editando treino':'Treino em andamento'}</div><h3>${esc((program()[d.day]||{name:d.day||'Treino'}).name)}</h3><div class="small muted">${fmtDL(d.date)} · <span class="plate t-${d.wt}"></span>${TYPES[d.wt]}</div></div></div>
+  <div class="cgrid" style="margin-top:10px"><label>Academia<select id="edgym">${gyms().concat(gyms().some(g=>g.id===d.gym)?[]:[{id:d.gym,name:gymName(d.gym)}]).map(g=>`<option value="${g.id}" ${g.id===d.gym?'selected':''}>${esc(g.name)}</option>`).join('')}</select></label>
+  <label>Treino<select id="edday">${Object.entries(program()).map(([k,p])=>`<option value="${k}" ${k===d.day?'selected':''}>${esc(p.name)}</option>`).join('')}${program()[d.day]?'':`<option selected value="${esc(d.day||'')}">${esc(d.day||'Outro')}</option>`}</select></label></div></div>`;
   d.exs.forEach((e,i)=>{h+=editorCard(e,i,d)});
   h+=`<div class="card stack"><button class="btn" id="addex">+ Adicionar exercício</button>${S.addOpen?exPicker('add'):''}</div>
   <button class="btn primary" id="finish">${isEdit?'Salvar alterações':'Finalizar treino'}</button>
@@ -436,10 +440,14 @@ function editorCard(e,i,d){
   <div class="exfoot"><div class="row"><button class="btn sm" data-addset="${i}">+ Série</button><button class="btn sm ghost" data-delset="${i}">− Série</button><span style="flex:1"></span><button class="btn sm ghost" data-rmex="${i}">Remover</button></div>
   <textarea id="note-${i}" data-note="${i}" placeholder="Observação: o que você fez para erguer essa carga (aparece na próxima vez)">${esc(e.note||'')}</textarea></div></div>`;
 }
+function resolvePick(id,persist){ if(!id.startsWith('new:')) return id; const name=id.slice(4).trim();
+  const nid='cx-'+name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  S.cfg={...S.cfg,customEx:{...(S.cfg.customEx||{}),[nid]:{name,group:'Outros'}}}; if(persist&&S.db) S.db.doc('cfg/main').set(S.cfg).catch(()=>{}); return nid }
 function exPicker(mode){
   const q=(S.pickQ||'').toLowerCase();
   const list=allEx().filter(x=>!q||x.name.toLowerCase().includes(q)||x.group.toLowerCase().includes(q));
-  return `<input id="pickq" placeholder="Buscar exercício ou grupo" value="${esc(S.pickQ||'')}"><div class="alts" style="padding:0;max-height:300px;overflow:auto">${list.map(x=>`<button data-pick="${x.id}" data-mode="${mode}">${esc(x.name)} <span class="tiny muted">· ${esc(x.group)}</span></button>`).join('')}</div>`;
+  const exact=list.some(x=>x.name.toLowerCase()===q.trim());
+  return `<input id="pickq" placeholder="Buscar ou digitar um exercício novo" value="${esc(S.pickQ||'')}"><div class="alts" style="padding:0;max-height:300px;overflow:auto">${q.trim()&&!exact?`<button data-pick="new:${esc(S.pickQ.trim())}"><b>+ Criar "${esc(S.pickQ.trim())}"</b></button>`:''}${list.map(x=>`<button data-pick="${x.id}" data-mode="${mode}">${esc(x.name)} <span class="tiny muted">· ${esc(x.group)}</span></button>`).join('')}</div>`;
 }
 function bindEditor(v){
   const d=S.draft;
@@ -456,9 +464,17 @@ function bindEditor(v){
   v.querySelectorAll('[data-swap]').forEach(b=>b.onclick=()=>{S.swap=S.swap===+b.dataset.swap?null:+b.dataset.swap;route()});
   v.querySelectorAll('[data-swapcancel]').forEach(b=>b.onclick=()=>{S.swap=null;route()});
   v.querySelectorAll('[data-swapto]').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;const old=d.exs[i];const it={ex:b.dataset.swapto,sets:old.plan?.sets||old.sets.length,reps:old.plan?.reps||'6~10',pf:old.plan?.pf};const ne=newExEntry(it,d.gym,d.date,d.wt);ne.note=old.note;d.exs[i]=ne;S.swap=null;queueDraftSave();route()});
+  const untouched=e=>!e.sets.some(x=>x.done||x.r!=null);
+  const eg=$('#edgym'); if(eg) eg.onchange=()=>{ d.gym=eg.value; if(!d.editOf) ls.set('gym',d.gym);
+    d.exs=d.exs.map(e=>untouched(e)?{...newExEntry({ex:e.ex,sets:e.plan?.sets||e.sets.length,reps:e.plan?.reps||'6~10',pf:e.plan?.pf},d.gym,d.date,d.wt),note:e.note||''}:e);
+    queueDraftSave(); route(); toast('Metas recalculadas para '+gymName(d.gym)) };
+  const ed=$('#edday'); if(ed) ed.onchange=()=>{ const pr=program()[ed.value]; if(!pr) return; d.day=ed.value;
+    const kept=d.exs.filter(e=>!untouched(e)); const have=new Set(kept.map(e=>e.ex));
+    d.exs=kept.concat(pr.items.filter(it=>!have.has(it.ex)).map(it=>newExEntry(it,d.gym,d.date,d.wt)));
+    queueDraftSave(); route(); toast('Trocado para '+pr.name+(kept.length?' (exercícios já feitos foram mantidos)':'')) };
   const add=$('#addex'); if(add) add.onclick=()=>{S.addOpen=!S.addOpen;route()};
   const pq=$('#pickq'); if(pq){pq.oninput=()=>{S.pickQ=pq.value;const pos=pq.selectionStart;route();const n=$('#pickq');n.focus();n.setSelectionRange(pos,pos)}}
-  v.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{d.exs.push(newExEntry({ex:b.dataset.pick,sets:2,reps:'6~10'},d.gym,d.date,d.wt));S.addOpen=false;S.pickQ='';queueDraftSave();route()});
+  v.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{d.exs.push(newExEntry({ex:resolvePick(b.dataset.pick,true),sets:2,reps:'6~10'},d.gym,d.date,d.wt));S.addOpen=false;S.pickQ='';queueDraftSave();route()});
   $('#finish').onclick=finishSession;
   const dis=$('#discard'); dis.onclick=()=>{ if(dis.dataset.armed){discardSession()} else {dis.dataset.armed=1;dis.textContent='Toque de novo para confirmar'} };
 }
@@ -610,7 +626,7 @@ async function importBackup(j){
 
 /* ---------- Ajustes ---------- */
 function viewAjustes(v){
-  S.editing=false; const t=todayISO(); const pr=program(); const sd=S.setDay||Object.keys(pr)[0];
+  S.editing=false; const t=todayISO(); const pr=program(); const sd=pr[S.setDay]?S.setDay:Object.keys(pr)[0];
   let h=`<div class="stack"><h2>Ajustes</h2>
   <div class="card stack"><h3>Ciclo de ondulação</h3><div class="small muted">Ordinária → Choque → Estabilizadora → Ordinária → Deload, e repete.</div>
   <div class="row"><label class="small" for="curwt">Esta semana é</label><select id="curwt">${CYCLE.map(k=>`<option value="${k}" ${k===weekType(t)?'selected':''}>${TYPES[k]}${k==='ordinaria2'?' (2ª)':''}</option>`).join('')}</select></div>
@@ -621,10 +637,11 @@ function viewAjustes(v){
   <div class="card stack"><h3>Academias</h3><div class="small muted">Anote barras e anilhas de cada uma. As metas de carga são sempre calculadas pela academia escolhida.</div>
   ${gyms().map((g,i)=>`<div class="stack" style="gap:6px"><div class="row"><input data-gname="${i}" value="${esc(g.name)}" style="flex:1"><button class="btn sm ghost" data-grm="${i}">Remover</button></div><textarea data-gnote="${i}" placeholder="Ex.: barra olímpica 20 kg, barra média 15 kg, anilhas em kg; halteres sobem de 2 em 2">${esc(g.notes||'')}</textarea></div>`).join('')}
   <div class="row"><input id="newgym" placeholder="Nova academia" style="flex:1"><button class="btn sm" id="addgym">Adicionar</button></div><button class="btn primary" id="savegyms">Salvar academias</button></div>
-  <div class="card stack"><h3>Programa</h3><div class="seg">${Object.entries(pr).map(([k,p])=>`<button data-sd="${k}" class="${k===sd?'on':''}">${esc(p.name.split('·')[0].trim())}</button>`).join('')}</div>
+  <div class="card stack" id="progcard"><h3>Programa de treinos</h3><div class="small muted">Escolha o treino, mude o nome, adicione, remova ou reordene exercícios. Você também pode criar treinos novos (E, F…).</div><div class="seg">${Object.entries(pr).map(([k,p])=>`<button data-sd="${k}" class="${k===sd?'on':''}">${esc(p.name.split('·')[0].trim())}</button>`).join('')}<button id="newday">+ Novo</button></div>
+  <div class="cgrid"><label>Nome do treino<input id="pdname" value="${esc(pr[sd].name)}"></label><label>Dia da semana<select id="pddow"><option value="">Qualquer</option>${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((n,i)=>`<option value="${i}" ${pr[sd].dow===i?'selected':''}>${n}</option>`).join('')}</select></label></div>
   <div class="list">${pr[sd].items.map((it,i)=>`<div class="li" style="flex-wrap:wrap"><div style="flex:1 1 200px;min-width:0"><b>${esc(exName(it.ex))}</b></div><div class="row"><input data-ps="${i}" value="${it.sets}" inputmode="numeric" style="width:48px" aria-label="Séries"><input data-pr="${i}" value="${esc(it.reps)}" style="width:70px" aria-label="Reps"><label class="tiny"><input type="checkbox" data-ppf="${i}" ${it.pf?'checked':''}> PF</label><button class="btn sm ghost" data-pup="${i}" aria-label="Subir">↑</button><button class="btn sm ghost" data-prm="${i}" aria-label="Remover">✕</button></div></div>`).join('')}</div>
   <button class="btn" id="paddbtn">+ Exercício no ${esc(sd)}</button>${S.paddOpen?exPicker('prog'):''}
-  <button class="btn primary" id="saveprog">Salvar programa</button></div>
+  <button class="btn primary" id="saveprog">Salvar programa</button><button class="btn danger" id="delday">Excluir o treino ${esc(sd)}</button></div>
   <div class="card stack"><h3>Backup</h3><div class="small muted">Versão ${APP_VERSION}. Seus dados ficam guardados neste iPhone. Exporte um backup de vez em quando (Arquivos, iCloud Drive ou WhatsApp) para não perder nada se trocar de aparelho.</div><button class="btn" id="export">Exportar backup (.json)</button><label class="btn" for="import" style="text-align:center">Importar backup (.json)</label><input type="file" id="import" accept=".json,application/json" hidden><div class="tiny muted">Importar junta o arquivo com o que já está aqui; treinos com o mesmo identificador são substituídos pelos do arquivo.</div></div></div>`;
   v.innerHTML=h;
   $('#curwt').onchange=e=>saveCfg({anchorMon:monday(t),anchorPos:CYCLE.indexOf(e.target.value),weekTypesHist:{...(S.cfg.weekTypesHist||{}),...histUntil(monday(t))}});
@@ -643,8 +660,13 @@ function viewAjustes(v){
   v.querySelectorAll('[data-prm]').forEach(b=>b.onclick=()=>{PR[sd].items.splice(+b.dataset.prm,1);saveCfg({program:PR})});
   $('#paddbtn').onclick=()=>{S.paddOpen=!S.paddOpen;route()};
   const pq=$('#pickq'); if(pq){pq.oninput=()=>{S.pickQ=pq.value;const pos=pq.selectionStart;route();const n=$('#pickq');n.focus();n.setSelectionRange(pos,pos)}}
-  v.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{PR[sd].items.push({ex:b.dataset.pick,sets:2,reps:'6~10',pf:false});S.paddOpen=false;S.pickQ='';saveCfg({program:PR})});
+  v.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{PR[sd].items.push({ex:resolvePick(b.dataset.pick,false),sets:2,reps:'6~10',pf:false});S.paddOpen=false;S.pickQ='';saveCfg({program:PR})});
   $('#saveprog').onclick=()=>saveCfg({program:PR});
+  $('#pdname').oninput=e=>PR[sd].name=e.target.value; $('#pdname').onchange=e=>{PR[sd].name=e.target.value.trim()||sd;saveCfg({program:PR})};
+  $('#pddow').onchange=e=>{const v=e.target.value;const n=v===''?undefined:+v;Object.values(PR).forEach(p=>{if(n!=null&&p.dow===n)delete p.dow});if(n==null)delete PR[sd].dow;else PR[sd].dow=n;saveCfg({program:PR})};
+  $('#newday').onclick=()=>{let c='E';const ks=Object.keys(PR);for(const L of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'){if(!ks.includes(L)){c=L;break}}PR[c]={name:c+' · Treino '+c,items:[]};S.setDay=c;saveCfg({program:PR})};
+  const dd=$('#delday'); dd.onclick=()=>{ if(Object.keys(PR).length<=1){toast('Precisa ter pelo menos um treino');return} if(!dd.dataset.armed){dd.dataset.armed=1;dd.textContent='Toque de novo para excluir '+sd;return} delete PR[sd];S.setDay=null;saveCfg({program:PR}) };
+  if(S.focusProg){S.focusProg=false;setTimeout(()=>{const c=$('#progcard');c&&c.scrollIntoView({block:'start'})},50)}
   $('#export').onclick=async()=>{ const data=JSON.stringify({app:'caderno-treino',v:1,exportedAt:new Date().toISOString(),cfg:S.cfg,sessions:allSessions(),weights:weightDays(),cardio:cardioList()});
     const file=new File([data],'treino-backup-'+t+'.json',{type:'application/json'});
     try{ if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Backup do treino'});return} }catch(e){if(e.name==='AbortError')return}
@@ -657,7 +679,6 @@ function histUntil(mon){ // freeze computed week types for past weeks before re-
 }
 
 boot();
-const APP_VERSION='2026-11-16c';
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}))}
 async function checkUpdate(){ try{ const r=await fetch('version.json?'+Date.now(),{cache:'no-store'}); const j=await r.json();
   if(j.v&&j.v!==APP_VERSION){ const reg=await navigator.serviceWorker?.getRegistration(); if(reg) await reg.update().catch(()=>{});
