@@ -153,7 +153,7 @@ table.tbl td,table.tbl th{padding:6px 8px;border-top:1px solid var(--line);text-
 <script>
 (()=>{
 /* ---------- constants ---------- */
-const APP_VERSION='2026-11-17e';
+const APP_VERSION='2026-11-19a';
 const TYPES={ordinaria:'Ordinária',ordinaria2:'Ordinária',choque:'Choque',estabilizadora:'Estabilizadora',deload:'Deload'};
 const CYCLE=['ordinaria','choque','estabilizadora','ordinaria2','deload'];
 const TYPE_RULE={
@@ -285,7 +285,7 @@ function LocalDB(){
   const qs=c=>{const docs=Object.keys(mem).filter(k=>k.startsWith(c+'/')).map(k=>({id:k.slice(c.length+1),exists:true,data:()=>mem[k]}));return {docs,size:docs.length,empty:!docs.length}};
   const fire=c=>subs.forEach(([cc,f,isDoc])=>{ if(isDoc){ if(cc.startsWith(c+'/')) f(snapDoc(cc)) } else if(cc===c) f(qs(c)) });
   const api={
-    doc:p=>({get:async()=>{await ready;return snapDoc(p)},set:async d=>{mem[p]=JSON.parse(JSON.stringify(d));await persist(p,mem[p]);fire(p.split('/')[0])},delete:async()=>{delete mem[p];await persist(p,undefined);fire(p.split('/')[0])},onSnapshot:f=>{subs.push([p,f,true]);ready.then(()=>f(snapDoc(p)));return()=>{}}}),
+    doc:p=>({get:async()=>{await ready;return snapDoc(p)},set:async d=>{mem[p]=JSON.parse(JSON.stringify(d));await persist(p,mem[p]);fire(p.split('/')[0]);scheduleSync()},delete:async()=>{delete mem[p];await persist(p,undefined);fire(p.split('/')[0]);scheduleSync()},onSnapshot:f=>{subs.push([p,f,true]);ready.then(()=>f(snapDoc(p)));return()=>{}}}),
     collection:c=>({onSnapshot:f=>{subs.push([c,f,false]);ready.then(()=>f(qs(c)));return()=>{}}}),
     _all:async()=>{await ready;return {...mem}},
     _putMany:async(obj)=>{await ready;for(const [k,v] of Object.entries(obj)){mem[k]=v;await persist(k,v)}['cfg','hist','sessions','weights','cardio'].forEach(fire)}
@@ -386,6 +386,27 @@ async function doExport(){ const t=todayISO(); const data=JSON.stringify({app:'c
   try{ if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Backup do treino'});await markBackup();toast('Backup feito');route();return} }catch(e){if(e.name==='AbortError')return}
   const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000); await markBackup(); route() }
 function backupDue(){ const last=S.cfg.lastBackup, t=todayISO(); if(last===t) return false; const days=last?Math.round((parseD(t)-parseD(last))/864e5):99; return parseD(t).getDay()===0||days>=7 }
+/* ---------- sync to the user's private GitHub repo (token stays on this device) ---------- */
+const SYNC_PATH='dados/caderno-treino.json';
+const syncCfg=()=>({repo:ls.get('syncRepo','fernandocesarfm1989/caderno-treino-dados'),token:ls.get('syncToken',''),last:ls.get('syncLast',''),err:ls.get('syncErr','')});
+let syncTimer=null, syncing=false, syncAgain=false;
+function scheduleSync(){ if(!syncCfg().token) return; clearTimeout(syncTimer); syncTimer=setTimeout(()=>doSync(false),8000) }
+function b64utf8(str){ const bytes=new TextEncoder().encode(str); let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); return btoa(bin) }
+async function doSync(loud){
+  const c=syncCfg(); if(!c.token||!S.loaded){ if(loud) toast('Cole o token primeiro'); return false }
+  if(syncing){ syncAgain=true; return false } syncing=true;
+  const url='https://api.github.com/repos/'+c.repo+'/contents/'+SYNC_PATH, h={Authorization:'Bearer '+c.token,Accept:'application/vnd.github+json'};
+  try{
+    const body=JSON.stringify({app:'caderno-treino',v:1,syncedAt:new Date().toISOString(),appVersion:APP_VERSION,cfg:S.cfg,sessions:allSessions(),weights:weightDays(),cardio:cardioList()},null,1);
+    let sha; const g=await fetch(url+'?t='+Date.now(),{headers:h,cache:'no-store'});
+    if(g.ok) sha=(await g.json()).sha; else if(g.status!==404) throw new Error(g.status===401?'token inválido ou expirado':g.status===403?'token sem permissão de escrita':'erro '+g.status);
+    const r=await fetch(url,{method:'PUT',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify({message:'Sincroniza dados '+todayISO(),content:b64utf8(body),...(sha?{sha}:{})})});
+    if(!r.ok) throw new Error(r.status===404?'repositório não encontrado ou token sem acesso a ele':r.status===409?'conflito, tente de novo':'erro '+r.status);
+    ls.set('syncLast',new Date().toISOString()); ls.set('syncErr',''); if(loud) toast('Sincronizado');
+    return true
+  }catch(e){ ls.set('syncErr',e.message||'sem internet'); if(loud) toast('Não sincronizou: '+(e.message||'sem internet')); return false }
+  finally{ syncing=false; if(syncAgain){syncAgain=false;scheduleSync()} if(S.tab==='ajustes'&&!S.editing) route() }
+}
 /* ---------- cardio ---------- */
 const CARDIO_KINDS=['Caminhada inclinada','Esteira','Bike','Escada','Elíptico','Corrida','Outro'];
 function cardioList(){return Object.entries(S.cardio).filter(([id,c])=>c&&!c.deleted&&c.date).map(([id,c])=>({...c,id})).sort((a,b)=>(b.date+(b.t||'')).localeCompare(a.date+(a.t||'')))}
@@ -671,6 +692,12 @@ function viewAjustes(v){
   <div class="list">${pr[sd].items.map((it,i)=>`<div class="li" style="flex-wrap:wrap"><div style="flex:1 1 200px;min-width:0"><b>${esc(exName(it.ex))}</b></div><div class="row"><input data-ps="${i}" value="${it.sets}" inputmode="numeric" style="width:48px" aria-label="Séries"><input data-pr="${i}" value="${esc(it.reps)}" style="width:70px" aria-label="Reps"><label class="tiny"><input type="checkbox" data-ppf="${i}" ${it.pf?'checked':''}> PF</label><button class="btn sm ghost" data-pup="${i}" aria-label="Subir">↑</button><button class="btn sm ghost" data-prm="${i}" aria-label="Remover">✕</button></div></div>`).join('')}</div>
   <button class="btn" id="paddbtn">+ Exercício no ${esc(sd)}</button>${S.paddOpen?exPicker('prog'):''}
   <button class="btn primary" id="saveprog">Salvar programa</button><button class="btn danger" id="delday">Excluir o treino ${esc(sd)}</button></div>
+  ${(()=>{const c=syncCfg();return `<div class="card stack"><h3>Sincronizar com o Claude</h3><div class="small muted">Envia uma cópia dos seus dados para o seu repositório privado no GitHub sempre que você salva algo, para o Claude acompanhar seu progresso.</div>
+  <label class="small">Repositório<input id="srepo" value="${esc(c.repo)}" style="width:100%;box-sizing:border-box;margin-top:4px" autocapitalize="off" autocorrect="off"></label>
+  <label class="small">Token${c.token?' (salvo neste iPhone)':''}<input id="stoken" type="password" placeholder="${c.token?'••••••••  (cole outro para trocar)':'cole aqui o token github_pat_…'}" style="width:100%;box-sizing:border-box;margin-top:4px" autocapitalize="off" autocorrect="off"></label>
+  <button class="btn primary" id="ssync">${c.token?'Sincronizar agora':'Salvar e sincronizar'}</button>
+  <div class="tiny muted">${c.last?'Última sincronização: '+new Date(c.last).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Ainda não sincronizado.'}${c.err?' <b style="color:var(--danger,#c33)">Erro: '+esc(c.err)+'</b>':''}</div>
+  ${c.token?'<button class="btn sm ghost" id="sclear">Desligar sincronização</button>':''}</div>`})()}
   <div class="card stack"><h3>Backup</h3><div class="small muted">Versão ${APP_VERSION}. Último backup: ${S.cfg.lastBackup?fmtD(S.cfg.lastBackup):'nenhum'}. Seus dados ficam guardados neste iPhone. Exporte um backup de vez em quando (Arquivos, iCloud Drive ou WhatsApp) para não perder nada se trocar de aparelho.</div><button class="btn" id="export">Exportar backup (.json)</button><label class="btn" for="import" style="text-align:center">Importar backup (.json)</label><input type="file" id="import" accept=".json,application/json" hidden><div class="tiny muted">Importar junta o arquivo com o que já está aqui; treinos com o mesmo identificador são substituídos pelos do arquivo.</div></div></div>`;
   v.innerHTML=h;
   $('#curwt').onchange=e=>saveCfg({anchorMon:monday(t),anchorPos:CYCLE.indexOf(e.target.value),weekTypesHist:{...(S.cfg.weekTypesHist||{}),...histUntil(monday(t))}});
@@ -697,6 +724,9 @@ function viewAjustes(v){
   const dd=$('#delday'); dd.onclick=()=>{ if(Object.keys(PR).length<=1){toast('Precisa ter pelo menos um treino');return} if(!dd.dataset.armed){dd.dataset.armed=1;dd.textContent='Toque de novo para excluir '+sd;return} delete PR[sd];S.setDay=null;saveCfg({program:PR}) };
   if(S.focusProg){S.focusProg=false;setTimeout(()=>{const c=$('#progcard');c&&c.scrollIntoView({block:'start'})},50)}
   $('#export').onclick=doExport;
+  $('#ssync').onclick=async()=>{ const tk=$('#stoken').value.trim(), rp=$('#srepo').value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\/$/,'');
+    if(rp) ls.set('syncRepo',rp); if(tk) ls.set('syncToken',tk); $('#ssync').textContent='Sincronizando…'; await doSync(true) };
+  const sc=$('#sclear'); if(sc) sc.onclick=()=>{ls.set('syncToken','');ls.set('syncLast','');ls.set('syncErr','');toast('Sincronização desligada');route()};
   $('#import').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); const n=await importBackup(j); toast(n+' treinos importados'); }catch(err){ toast('Arquivo inválido: '+err.message) } e.target.value=''; };
 }
 function histUntil(mon){ // freeze computed week types for past weeks before re-anchoring
