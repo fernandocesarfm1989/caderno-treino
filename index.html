@@ -153,7 +153,7 @@ table.tbl td,table.tbl th{padding:6px 8px;border-top:1px solid var(--line);text-
 <script>
 (()=>{
 /* ---------- constants ---------- */
-const APP_VERSION='2026-11-19a';
+const APP_VERSION='2026-11-21a';
 const TYPES={ordinaria:'Ordinária',ordinaria2:'Ordinária',choque:'Choque',estabilizadora:'Estabilizadora',deload:'Deload'};
 const CYCLE=['ordinaria','choque','estabilizadora','ordinaria2','deload'];
 const TYPE_RULE={
@@ -250,7 +250,7 @@ function computeTarget(item,gym,date,wtOverride){
   const histAll=entriesFor(ex,null).filter(e=>!e.mr&&monday(e.date)<thisMon);
   const refSame=hist.find(isRef)||hist[0]||null, refAll=histAll.find(isRef)||histAll[0]||null;
   // use this gym's history only if it is recent; otherwise the latest work anywhere is the better base
-  if(!refSame || (refAll && refAll.gym!==gym && (parseD(refAll.date)-parseD(refSame.date))>21*864e5)){ hist=histAll; other=!!refAll&&refAll.gym!==gym }
+  if(!refSame || (refAll && refAll.gym!==gym && (parseD(refAll.date)-parseD((entriesFor(ex,gym)[0]||refSame).date))>21*864e5)){ hist=histAll; other=!!refAll&&refAll.gym!==gym }
   const last=hist[0]||null;
   const ref=hist.find(isRef)||last;
   let sets=item.sets||2;
@@ -309,12 +309,18 @@ async function boot(){
   let h4=false;db.collection('cardio').onSnapshot(q=>{S.cardio={};q.docs.forEach(d=>S.cardio[d.id]=d.data());S._rev++;if(!h4){h4=true;done()}else if(S.loaded&&!S.editing)route()},err);
   let h3=false;db.collection('weights').onSnapshot(q=>{S.wdocs={};q.docs.forEach(d=>S.wdocs[d.id]=d.data());S._rev++;if(!h3){h3=true;done()}else if(S.loaded&&!S.editing)route()},err);
 }
+const HIST_FIXES={ // corrections Fernando asked for
+  'h2026-07-21':{wt:'ordinaria',day:'D',ex:{flexora_cadeira:{to:'flexora_vertical',note:/vertical/i}}}
+};
 async function runMigrations(){
   if(!S.db) return; // idempotent: only rewrites docs that still have unspecified entries
   const writes=[];
   for(const [k,doc] of Object.entries(S.hist)){ let ch=false; const ss=JSON.parse(JSON.stringify(doc.sessions||{}));
     for(const s of Object.values(ss)) for(const e of s.exs||[]){ if(e.ex!=='crucifixo_inverso') continue; const n=(e.note||'').toLowerCase();
       if(/peck|pulley|m[aá]quina/.test(n)) continue; e.ex=/cross|polia|cabo/.test(n)?'crucifixo_inv_cross':'cruc_inv_banco'; ch=true }
+    for(const [sid,s] of Object.entries(ss)){ const fx=HIST_FIXES[sid]; if(!fx) continue;
+      if(fx.wt&&s.wt!==fx.wt){s.wt=fx.wt;ch=true} if(fx.day&&s.day!==fx.day){s.day=fx.day;ch=true}
+      for(const e of s.exs||[]){ const m=fx.ex&&fx.ex[e.ex]; if(m&&(!m.note||m.note.test(e.note||''))){e.ex=m.to;ch=true} } }
     if(ch) writes.push(S.db.doc('hist/'+k).set({...doc,sessions:ss})) }
   try{ await Promise.all(writes) }catch(e){console.warn(e)}
 }
