@@ -98,7 +98,7 @@ textarea{width:100%;resize:vertical;min-height:62px}
 .alts{display:flex;flex-direction:column;gap:6px;padding:0 14px 10px}
 .alts button{text-align:left;border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:8px 10px;color:var(--ink);font-weight:500}
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
-.tabs a{flex:1;max-width:128px;text-align:center;padding:9px 2px 8px;color:var(--muted);text-decoration:none;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px}
+.tabs a{flex:1;min-width:0;max-width:128px;text-align:center;padding:9px 2px 8px;color:var(--muted);text-decoration:none;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px}
 .tabs a.on{color:var(--ink)}
 .tabs svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .chart{width:100%;height:auto;display:block}
@@ -120,6 +120,8 @@ textarea{width:100%;resize:vertical;min-height:62px}
 .banner{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1.5px dashed var(--accent);border-radius:12px;padding:12px 14px}
 .weighin{display:flex;gap:8px;align-items:center}
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}.cgrid input,.cgrid select{width:100%;box-sizing:border-box}.cgrid .wide{grid-column:1/-1}
+.agdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.agdays button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 0 5px;font:600 11px var(--body);color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}.agdays button b{font-size:15px;color:var(--ink)}.agdays button.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}.agdays button.today b{text-decoration:underline}.agdays i{font-style:normal;font-size:10px;min-height:12px}.agdays .dn{color:#2f8f4e}.agdays .pl{color:var(--muted)}.agdays .ms{color:#c0392b}
+.agex{padding:8px 0;border-top:1px solid var(--line)}.agex .sk{color:#c0392b}.tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:9px;background:var(--sunk);color:var(--muted);margin-left:6px;vertical-align:middle}
 .cdots{display:flex;gap:6px}.cdots span{width:14px;height:14px;border-radius:50%;border:2px solid var(--line)}.cdots span.on{background:var(--ink);border-color:var(--ink)}
 .weighin input{font-family:var(--display);font-size:28px;font-weight:700;width:120px;text-align:center}
 details summary{cursor:pointer;list-style:none}
@@ -153,7 +155,7 @@ table.tbl td,table.tbl th{padding:6px 8px;border-top:1px solid var(--line);text-
 <script>
 (()=>{
 /* ---------- constants ---------- */
-const APP_VERSION='2026-11-21a';
+const APP_VERSION='2026-11-27a';
 const TYPES={ordinaria:'Ordinária',ordinaria2:'Ordinária',choque:'Choque',estabilizadora:'Estabilizadora',deload:'Deload'};
 const CYCLE=['ordinaria','choque','estabilizadora','ordinaria2','deload'];
 const TYPE_RULE={
@@ -177,9 +179,9 @@ const LIB=[
 const EXN={},EXG={};LIB.forEach(([i,n,g])=>{EXN[i]=n;EXG[i]=g});
 const P=(ex,sets,reps,pf,extra)=>Object.assign({ex,sets,reps,pf:!!pf},extra||{});
 const DEFAULT_PROGRAM={
- A:{name:'A · Superiores 1',dow:1,items:[P('barra_fixa',2,'6~10',1),P('pulldown_corda',3,'6~10',1),P('sup_incl_halt',3,'6~10'),P('elev_lat_cross',3,'6~10',1),P('crucifixo_inverso',2,'6~10',1),P('elev_pernas',3,'6~10'),P('rosca_martelo',2,'6~10')]},
+ A:{name:'A · Superiores 1',dow:1,items:[P('barra_fixa',2,'6~10',1),P('pulldown_corda',3,'6~10',1),P('sup_incl_halt',1,'6~10'),P('sup_reto_halt',2,'6~10'),P('elev_lat_cross',3,'6~10',1),P('crucifixo_inverso',2,'6~10',1),P('elev_pernas',3,'6~10'),P('rosca_martelo',2,'6~10')]},
  B:{name:'B · Inferiores 1',dow:2,items:[P('agach_highbar',3,'8'),P('ext_coluna',2,'6~10'),P('extensora',3,'6~10'),P('flexora_cadeira',3,'6~10'),P('adutora',2,'6~10',1),P('abdutora',2,'6~10',1),P('pant_legpress',2,'6~10'),P('pant_sentado',2,'6~10')]},
- C:{name:'C · Superiores 2',dow:4,items:[P('cavalinho',2,'6~10'),P('crucifixo_inverso',2,'6~10'),P('sup_reto_halt',2,'6~10'),P('sup_incl_halt',4,'6~10',1),P('pulley_unilat',1,'6~10',1,{amrap:true}),P('pulldown_corda',3,'6~10',1),P('elev_lat_halt',3,'6~10',1),P('triceps_corda',2,'10~15')]},
+ C:{name:'C · Superiores 2',dow:4,items:[P('cavalinho',2,'6~10'),P('crucifixo_inverso',2,'6~10'),P('sup_reto_halt',2,'6~10'),P('sup_incl_halt',2,'6~10',1),P('pulley_unilat',1,'6~10',1,{amrap:true}),P('pulldown_corda',3,'6~10',1),P('elev_lat_halt',3,'6~10',1),P('triceps_corda',2,'10~15')]},
  D:{name:'D · Inferiores 2',dow:5,items:[P('agach_livre',2,'6~10'),P('extensora',2,'6~10',1),P('flexora_cadeira',2,'6~10',1),P('adutora',2,'6~10'),P('abdutora',2,'6~10'),P('pant_legpress',2,'6~10',1),P('pant_sentado',2,'6~10')]}};
 const PHASES=[['2025-08-25','Antes do plano'],['2026-04-20','Mens Physique 1'],['2026-06-01','Mens Physique 2'],['2026-06-08','Mens Physique 3'],['2026-08-05','Mens Physique 4']];
 
@@ -313,7 +315,12 @@ const HIST_FIXES={ // corrections Fernando asked for
   'h2026-07-21':{wt:'ordinaria',day:'D',ex:{flexora_cadeira:{to:'flexora_vertical',note:/vertical/i}}}
 };
 async function runMigrations(){
-  if(!S.db) return; // idempotent: only rewrites docs that still have unspecified entries
+  if(!S.db) return;
+  const mg=S.cfg.migrations||{};
+  if(S.cfg.program&&!mg.supino1127){ const PR=JSON.parse(JSON.stringify(S.cfg.program));
+    const fix=(k,setsBy)=>{const d=PR[k];if(!d)return;for(const [ex,n] of Object.entries(setsBy)){const it=d.items.find(i=>i.ex===ex);if(it)it.sets=n;else{const at=d.items.findIndex(i=>/sup_/.test(i.ex));d.items.splice(at<0?d.items.length:at+1,0,{ex,sets:n,reps:'6~10',pf:false})}}};
+    fix('A',{sup_incl_halt:1,sup_reto_halt:2}); fix('C',{sup_reto_halt:2,sup_incl_halt:2});
+    S.cfg={...S.cfg,program:PR,migrations:{...mg,supino1127:true}}; try{await S.db.doc('cfg/main').set(S.cfg)}catch(e){} } // idempotent: only rewrites docs that still have unspecified entries
   const writes=[];
   for(const [k,doc] of Object.entries(S.hist)){ let ch=false; const ss=JSON.parse(JSON.stringify(doc.sessions||{}));
     for(const s of Object.values(ss)) for(const e of s.exs||[]){ if(e.ex!=='crucifixo_inverso') continue; const n=(e.note||'').toLowerCase();
@@ -343,8 +350,8 @@ async function addWeight(kg){
 async function delWeight(day,idx){const id='w-'+day.slice(0,7);const doc=JSON.parse(JSON.stringify(S.wdocs[id]));doc.days[day].splice(idx,1);if(!doc.days[day].length)delete doc.days[day];S.wdocs[id]=doc;route();try{await S.db.doc('weights/'+id).set(doc)}catch(e){toast('Não salvou')}}
 
 /* ---------- chrome ---------- */
-const ICONS={hoje:'<path d="M6 9v6M18 9v6M3 11v2M21 11v2M6 12h12"/>',historico:'<path d="M4 5h16M4 12h16M4 19h10"/>',progresso:'<path d="M4 19l5-6 4 3 7-9"/><path d="M15 7h5v5"/>',peso:'<path d="M5 20h14l-2-12H7z"/><circle cx="12" cy="6" r="2"/>',ajustes:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'};
-const TABN={hoje:'Treino',historico:'Histórico',progresso:'Progresso',peso:'Peso',ajustes:'Ajustes'};
+const ICONS={hoje:'<path d="M6 9v6M18 9v6M3 11v2M21 11v2M6 12h12"/>',agenda:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',historico:'<path d="M4 5h16M4 12h16M4 19h10"/>',progresso:'<path d="M4 19l5-6 4 3 7-9"/><path d="M15 7h5v5"/>',peso:'<path d="M5 20h14l-2-12H7z"/><circle cx="12" cy="6" r="2"/>',ajustes:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'};
+const TABN={hoje:'Treino',agenda:'Agenda',historico:'Histórico',progresso:'Progresso',peso:'Peso',ajustes:'Ajustes'};
 function renderChrome(){
   $('#tabs').innerHTML=Object.keys(TABN).map(k=>`<a href="#${k}" data-tab="${k}" class="${S.tab===k?'on':''}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${TABN[k]}</a>`).join('');
   const t=todayISO(); $('#today').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
@@ -355,7 +362,7 @@ function renderChrome(){
 }
 function route(){ const h=(location.hash||'#hoje').slice(1); S.tab=TABN[h]?h:'hoje'; renderChrome(); const v=$('#view');
   if(!S.loaded&&S.db){v.innerHTML='<div class="empty">Carregando seu histórico…</div>';return}
-  ({hoje:viewHoje,historico:viewHist,progresso:viewProg,peso:viewPeso,ajustes:viewAjustes})[S.tab](v) }
+  ({hoje:viewHoje,agenda:viewAgenda,historico:viewHist,progresso:viewProg,peso:viewPeso,ajustes:viewAjustes})[S.tab](v) }
 window.addEventListener('hashchange',()=>{window.scrollTo(0,0);route()});
 
 /* ---------- Treino ---------- */
@@ -412,6 +419,55 @@ async function doSync(loud){
     return true
   }catch(e){ ls.set('syncErr',e.message||'sem internet'); if(loud) toast('Não sincronizou: '+(e.message||'sem internet')); return false }
   finally{ syncing=false; if(syncAgain){syncAgain=false;scheduleSync()} if(S.tab==='ajustes'&&!S.editing) route() }
+}
+/* ---------- agenda (calendar by week) ---------- */
+const DOWN=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const doneSessions=d=>sessionsCached().filter(s=>s.date===d&&s.finished!==false&&!s.deleted);
+const plannedKey=d=>{const dow=parseD(d).getDay(),pr=program();return Object.keys(pr).find(k=>pr[k].dow===dow)||null};
+function inferDay(s){ if(s.day&&program()[s.day]) return s.day; const ids=new Set((s.exs||[]).map(e=>e.ex)); let best=null,sc=0;
+  for(const [k,p] of Object.entries(program())){ const n=p.items.filter(i=>ids.has(i.ex)||[...ids].some(x=>exGroup(x)===exGroup(i.ex)&&!p.items.some(j=>j.ex===x))).length; if(n>sc){sc=n;best=k} } return sc>=2?best:null }
+const realSets=e=>(e.sets||[]).filter(x=>x.r!=null&&(x.r>0));
+function planFor(d,gym){ const k=plannedKey(d); if(!k) return null; const wt=weekType(d), pr=program()[k];
+  const items=pr.items.map(it=>({it,tg:computeTarget(it,gym,d,wt)})); const vol=items.reduce((a,{tg})=>a+(tg.kg!=null&&!tg.timed?tg.kg*tg.reps.reduce((x,r)=>x+(r||0),0):0),0);
+  return {k,pr,wt,items,vol} }
+function agendaDay(d){
+  const t=todayISO(), ss=doneSessions(d), cd=cardioList().filter(c=>c.date===d), gym=ls.get('gym','24h'), wt=weekType(d);
+  let h=`<div class="card stack"><div class="row between"><div><div class="label">${fmtDL(d)}</div><div class="small muted"><span class="plate t-${wt}"></span>Semana ${TYPES[wt].toLowerCase()}</div></div></div>`;
+  if(ss.length){ for(const s of ss){ const k=inferDay(s), pr=k?program()[k]:null, ids=new Set((s.exs||[]).map(e=>e.ex));
+      h+=`<div><h3 style="margin:4px 0 2px">${esc(pr?pr.name:(s.day||'Treino'))} <span class="tag" style="background:#dff3e6;color:#2f8f4e">FEITO</span></h3><div class="small muted">${esc(gymName(s.gym))}${s.startedAt?' · '+esc(s.startedAt)+(s.endedAt?'–'+esc(s.endedAt):''):''} · volume ${f1(Math.round(sessVol(s)))} kg</div></div>`;
+      for(const e of s.exs||[]){ const rs=realSets(e), sk=(e.sets||[]).length-rs.length, inPlan=pr&&pr.items.some(i=>i.ex===e.ex);
+        h+=`<div class="agex"><b>${esc(exName(e.ex))}</b>${pr&&!inPlan?'<span class="tag">fora do programa</span>':''}<div class="small">${rs.length?esc(setsTxt(rs)):'<span class="sk">pulado</span>'}${sk&&rs.length?` <span class="sk">· ${sk} série${sk>1?'s':''} não feita${sk>1?'s':''}</span>`:''}</div>${e.gym&&e.gym!==s.gym?`<div class="tiny muted">${esc(gymName(e.gym))}</div>`:''}${e.note?`<div class="tiny muted">${esc(e.note)}</div>`:''}</div>`; }
+      const miss=pr?pr.items.filter(i=>!ids.has(i.ex)):[];
+      if(miss.length) h+=`<div class="agex"><div class="label">Não feitos do ${esc(pr.name.split('·')[0].trim())}</div><div class="small sk">${miss.map(i=>esc(exName(i.ex))+' ('+i.sets+'×)').join(' · ')}</div></div>`; } }
+  else { const pl=planFor(d,gym);
+    if(pl){ const past=d<t;
+      h+=`<div><h3 style="margin:4px 0 2px">${esc(pl.pr.name)} <span class="tag" style="${past?'background:#fbe3e0;color:#c0392b':''}">${past?'NÃO REGISTRADO':d===t?'HOJE':'PREVISTO'}</span></h3><div class="small muted">Metas na ${esc(gymName(gym))}${pl.vol?' · volume previsto '+f1(Math.round(pl.vol))+' kg':''}</div></div>`;
+      for(const {it,tg} of pl.items){ h+=`<div class="agex"><b>${esc(exName(it.ex))}</b>${it.pf?'<span class="tag">PF</span>':''}<div class="small">${tg.timed?tg.reps.map(r=>r==null?'?':f1(r)).join(' · ')+' min':(tg.kg==null&&!tg.ref?tg.sets+' × '+esc(it.reps)+' (sem histórico)':(tg.kg==null?'PC':f1(tg.kg)+' '+(tg.unit==='lbs'?'lb':'kg'))+' × '+tg.reps.map(r=>r??'?').join(' · '))}</div>${tg.ref?`<div class="tiny muted">Base: ${TYPES[tg.ref.wt]} ${fmtD(tg.ref.date)}${tg.other?' · '+esc(gymName(tg.ref.gym)):''}</div>`:''}</div>`; } }
+    else h+=`<div class="small muted">Sem musculação prevista${[3,0].includes(parseD(d).getDay())?' (dia de cardio)':''}.</div>`; }
+  if(cd.length) h+=`<div class="agex"><div class="label">Cardio</div>${cd.map(c=>`<div class="small">${esc(c.kind||'Cardio')} · <b>${c.min} min</b>${c.bpm?' · '+c.bpm+' bpm':''}</div>`).join('')}</div>`;
+  return h+'</div>';
+}
+function viewAgenda(v){
+  S.editing=false; const t=todayISO(); const mon=S.agWeek||monday(t); const days=Array.from({length:7},(_,i)=>addDays(mon,i));
+  if(!S.agDay||monday(S.agDay)!==mon) S.agDay=days.includes(t)?t:days[0];
+  const wt=weekType(mon), gym=ls.get('gym','24h');
+  let done=0,doneVol=0,planVol=0,doneN=0,planN=0;
+  const mark=d=>{const ss=doneSessions(d); if(ss.length){doneN++;ss.forEach(s=>doneVol+=sessVol(s));return '<i class="dn">●</i>'}
+    const k=plannedKey(d); if(!k) return '<i></i>'; if(d<t) return '<i class="ms">'+esc(k)+'</i>'; planN++; const pl=planFor(d,gym); planVol+=pl.vol; return '<i class="pl">'+esc(k)+'</i>'};
+  const cells=days.map(d=>{const m=mark(d);return `<button data-agd="${d}" class="${d===S.agDay?'on':''} ${d===t?'today':''}">${DOWN[parseD(d).getDay()]}<b>${parseD(d).getDate()}</b>${m}</button>`}).join('');
+  const rel=Math.round((parseD(mon)-parseD(monday(t)))/6048e5), relTxt=rel===0?'Esta semana':rel===1?'Semana que vem':rel===-1?'Semana passada':(rel>0?'Daqui a '+rel+' semanas':'Há '+(-rel)+' semanas');
+  let h=`<div class="stack"><div class="card stack"><div class="row between"><button class="btn sm ghost" id="agprev" aria-label="Semana anterior">‹</button><div style="text-align:center"><div class="label">${relTxt}</div><div><span class="pill t-${wt}"><span class="plate t-${wt}"></span>${TYPES[wt]}</span> <span class="small muted">${fmtD(mon)}–${fmtD(days[6])}</span></div></div><button class="btn sm ghost" id="agnext" aria-label="Próxima semana">›</button></div>
+  <div class="small muted" style="text-align:center">${esc(TYPE_RULE[wt])}</div>
+  <div class="agdays">${cells}</div>
+  <div class="kpis"><div class="kpi"><div class="label">Treinos feitos</div><div class="v">${doneN}</div></div><div class="kpi"><div class="label">Volume feito</div><div class="v">${doneVol?f1(Math.round(doneVol/100)/10)+'t':'–'}</div></div><div class="kpi"><div class="label">Previsto</div><div class="v">${planVol?f1(Math.round(planVol/100)/10)+'t':'–'}</div></div></div>
+  <div class="tiny muted"><span class="dn" style="color:#2f8f4e">●</span> feito · letra cinza = previsto · letra vermelha = previsto e não registrado. Volume em toneladas (kg × reps). Metas futuras usam a academia escolhida na aba Treino (${esc(gymName(gym))}).</div>
+  ${rel!==0?'<button class="btn sm" id="agtoday">Voltar para esta semana</button>':''}</div>
+  ${agendaDay(S.agDay)}</div>`;
+  v.innerHTML=h;
+  $('#agprev').onclick=()=>{S.agWeek=addDays(mon,-7);S.agDay=null;route()};
+  $('#agnext').onclick=()=>{S.agWeek=addDays(mon,7);S.agDay=null;route()};
+  const at=$('#agtoday'); if(at) at.onclick=()=>{S.agWeek=null;S.agDay=null;route()};
+  v.querySelectorAll('[data-agd]').forEach(b=>b.onclick=()=>{S.agDay=b.dataset.agd;route()});
 }
 /* ---------- cardio ---------- */
 const CARDIO_KINDS=['Caminhada inclinada','Esteira','Bike','Escada','Elíptico','Corrida','Outro'];
