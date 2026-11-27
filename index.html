@@ -155,7 +155,7 @@ table.tbl td,table.tbl th{padding:6px 8px;border-top:1px solid var(--line);text-
 <script>
 (()=>{
 /* ---------- constants ---------- */
-const APP_VERSION='2026-11-27a';
+const APP_VERSION='2026-11-27b';
 const TYPES={ordinaria:'Ordinária',ordinaria2:'Ordinária',choque:'Choque',estabilizadora:'Estabilizadora',deload:'Deload'};
 const CYCLE=['ordinaria','choque','estabilizadora','ordinaria2','deload'];
 const TYPE_RULE={
@@ -437,13 +437,16 @@ function agendaDay(d){
       h+=`<div><h3 style="margin:4px 0 2px">${esc(pr?pr.name:(s.day||'Treino'))} <span class="tag" style="background:#dff3e6;color:#2f8f4e">FEITO</span></h3><div class="small muted">${esc(gymName(s.gym))}${s.startedAt?' · '+esc(s.startedAt)+(s.endedAt?'–'+esc(s.endedAt):''):''} · volume ${f1(Math.round(sessVol(s)))} kg</div></div>`;
       for(const e of s.exs||[]){ const rs=realSets(e), sk=(e.sets||[]).length-rs.length, inPlan=pr&&pr.items.some(i=>i.ex===e.ex);
         h+=`<div class="agex"><b>${esc(exName(e.ex))}</b>${pr&&!inPlan?'<span class="tag">fora do programa</span>':''}<div class="small">${rs.length?esc(setsTxt(rs)):'<span class="sk">pulado</span>'}${sk&&rs.length?` <span class="sk">· ${sk} série${sk>1?'s':''} não feita${sk>1?'s':''}</span>`:''}</div>${e.gym&&e.gym!==s.gym?`<div class="tiny muted">${esc(gymName(e.gym))}</div>`:''}${e.note?`<div class="tiny muted">${esc(e.note)}</div>`:''}</div>`; }
+      h+=`<div class="row" style="gap:8px;padding-top:6px"><button class="btn sm" data-agedit="${s.id}">Editar este treino</button><button class="btn sm danger" data-agdel="${s.id}">Apagar</button></div>`;
       const miss=pr?pr.items.filter(i=>!ids.has(i.ex)):[];
       if(miss.length) h+=`<div class="agex"><div class="label">Não feitos do ${esc(pr.name.split('·')[0].trim())}</div><div class="small sk">${miss.map(i=>esc(exName(i.ex))+' ('+i.sets+'×)').join(' · ')}</div></div>`; } }
   else { const pl=planFor(d,gym);
     if(pl){ const past=d<t;
       h+=`<div><h3 style="margin:4px 0 2px">${esc(pl.pr.name)} <span class="tag" style="${past?'background:#fbe3e0;color:#c0392b':''}">${past?'NÃO REGISTRADO':d===t?'HOJE':'PREVISTO'}</span></h3><div class="small muted">Metas na ${esc(gymName(gym))}${pl.vol?' · volume previsto '+f1(Math.round(pl.vol))+' kg':''}</div></div>`;
       for(const {it,tg} of pl.items){ h+=`<div class="agex"><b>${esc(exName(it.ex))}</b>${it.pf?'<span class="tag">PF</span>':''}<div class="small">${tg.timed?tg.reps.map(r=>r==null?'?':f1(r)).join(' · ')+' min':(tg.kg==null&&!tg.ref?tg.sets+' × '+esc(it.reps)+' (sem histórico)':(tg.kg==null?'PC':f1(tg.kg)+' '+(tg.unit==='lbs'?'lb':'kg'))+' × '+tg.reps.map(r=>r??'?').join(' · '))}</div>${tg.ref?`<div class="tiny muted">Base: ${TYPES[tg.ref.wt]} ${fmtD(tg.ref.date)}${tg.other?' · '+esc(gymName(tg.ref.gym)):''}</div>`:''}</div>`; } }
-    else h+=`<div class="small muted">Sem musculação prevista${[3,0].includes(parseD(d).getDay())?' (dia de cardio)':''}.</div>`; }
+    else h+=`<div class="small muted">Sem musculação prevista${[3,0].includes(parseD(d).getDay())?' (dia de cardio)':''}.</div>`;
+    if(d<=t) h+=`<button class="btn sm" data-aglog="${d}">+ Registrar um treino neste dia</button>`; }
+  if(ss.length&&d<=t) h+=`<button class="btn sm" data-aglog="${d}">+ Registrar outro treino neste dia</button>`;
   if(cd.length) h+=`<div class="agex"><div class="label">Cardio</div>${cd.map(c=>`<div class="small">${esc(c.kind||'Cardio')} · <b>${c.min} min</b>${c.bpm?' · '+c.bpm+' bpm':''}</div>`).join('')}</div>`;
   return h+'</div>';
 }
@@ -468,6 +471,10 @@ function viewAgenda(v){
   $('#agnext').onclick=()=>{S.agWeek=addDays(mon,7);S.agDay=null;route()};
   const at=$('#agtoday'); if(at) at.onclick=()=>{S.agWeek=null;S.agDay=null;route()};
   v.querySelectorAll('[data-agd]').forEach(b=>b.onclick=()=>{S.agDay=b.dataset.agd;route()});
+  v.querySelectorAll('[data-agedit]').forEach(b=>b.onclick=()=>editSession(b.dataset.agedit,'#agenda'));
+  v.querySelectorAll('[data-aglog]').forEach(b=>b.onclick=()=>logPastDay(b.dataset.aglog,'#agenda'));
+  v.querySelectorAll('[data-agdel]').forEach(b=>b.onclick=async()=>{ if(!b.dataset.armed){b.dataset.armed=1;b.textContent='Toque de novo para apagar';return}
+    const id=b.dataset.agdel; try{await S.db.doc('sessions/'+id).set({deleted:true});S.sess[id]={deleted:true};S._rev++;toast('Treino apagado');route()}catch(e){toast('Não apagou')} });
 }
 /* ---------- cardio ---------- */
 const CARDIO_KINDS=['Caminhada inclinada','Esteira','Bike','Escada','Elíptico','Corrida','Outro'];
@@ -531,7 +538,7 @@ function viewEditor(v){
   S.editing=true; const d=S.draft; const isEdit=!!d.editOf;
   let h=`<div class="stack"><div class="card"><div class="row between"><div><div class="label">${isEdit?'Editando treino':'Treino em andamento'}</div><h3>${esc((program()[d.day]||{name:d.day||'Treino'}).name)}</h3><div class="small muted">${fmtDL(d.date)} · <span class="plate t-${d.wt}"></span>${TYPES[d.wt]}</div></div></div>
   <div class="cgrid" style="margin-top:10px"><label>Academia<select id="edgym">${gyms().concat(gyms().some(g=>g.id===d.gym)?[]:[{id:d.gym,name:gymName(d.gym)}]).map(g=>`<option value="${g.id}" ${g.id===d.gym?'selected':''}>${esc(g.name)}</option>`).join('')}</select></label>
-  <label>Treino<select id="edday">${Object.entries(program()).map(([k,p])=>`<option value="${k}" ${k===d.day?'selected':''}>${esc(p.name)}</option>`).join('')}${program()[d.day]?'':`<option selected value="${esc(d.day||'')}">${esc(d.day||'Outro')}</option>`}</select></label></div></div>`;
+  ${isEdit?`<label>Data<input type="date" id="eddate" value="${d.date}" max="${todayISO()}"></label><label>Semana<select id="edwt">${CYCLE.filter(k=>k!=='ordinaria2').map(k=>`<option value="${k}" ${k===(d.wt==='ordinaria2'?'ordinaria':d.wt)?'selected':''}>${TYPES[k]}</option>`).join('')}</select></label>`:''}<label>Treino<select id="edday">${Object.entries(program()).map(([k,p])=>`<option value="${k}" ${k===d.day?'selected':''}>${esc(p.name)}</option>`).join('')}${program()[d.day]?'':`<option selected value="${esc(d.day||'')}">${esc(d.day||'Outro')}</option>`}</select></label></div></div>`;
   d.exs.forEach((e,i)=>{h+=editorCard(e,i,d)});
   h+=`<div class="card stack"><button class="btn" id="addex">+ Adicionar exercício</button>${S.addOpen?exPicker('add'):''}</div>
   <button class="btn primary" id="finish">${isEdit?'Salvar alterações':'Finalizar treino'}</button>
@@ -580,6 +587,8 @@ function bindEditor(v){
   const eg=$('#edgym'); if(eg) eg.onchange=()=>{ d.gym=eg.value; if(!d.editOf) ls.set('gym',d.gym);
     d.exs=d.exs.map(e=>untouched(e)?{...newExEntry({ex:e.ex,sets:e.plan?.sets||e.sets.length,reps:e.plan?.reps||'6~10',pf:e.plan?.pf},d.gym,d.date,d.wt),note:e.note||''}:e);
     queueDraftSave(); route(); toast('Metas recalculadas para '+gymName(d.gym)) };
+  const edd=$('#eddate'); if(edd) edd.onchange=()=>{ if(edd.value){d.date=edd.value; d.wt=weekType(d.date); queueDraftSave(); route()} };
+  const ewt=$('#edwt'); if(ewt) ewt.onchange=()=>{ d.wt=ewt.value; queueDraftSave() };
   const ed=$('#edday'); if(ed) ed.onchange=()=>{ const pr=program()[ed.value]; if(!pr) return; d.day=ed.value;
     const kept=d.exs.filter(e=>!untouched(e)); const have=new Set(kept.map(e=>e.ex));
     d.exs=kept.concat(pr.items.filter(it=>!have.has(it.ex)).map(it=>newExEntry(it,d.gym,d.date,d.wt)));
@@ -593,12 +602,12 @@ function bindEditor(v){
 async function finishSession(){
   const d=S.draft; clearTimeout(saveTimer);
   const exs=d.exs.map(e=>({ex:e.ex,note:(e.note||'').trim(),...(e.unit==='lbs'?{unit:'lbs'}:{}),...(e.gym?{gym:e.gym}:{}),...(e.mr?{mr:true}:{}),sets:e.sets.filter(s=>s.r!=null||s.done).map(s=>isTimed(e.ex)?{kg:null,r:s.r,u:'min'}:({kg:s.kg,r:s.r,...(e.unit==='lbs'?{u:'lbs'}:{})}))})).filter(e=>e.sets.length||e.note);
-  const body={date:d.date,day:d.day||null,gym:d.gym,wt:d.wt,startedAt:d.startedAt||null,endedAt:new Date().toTimeString().slice(0,5),finished:true,exs};
+  const body={date:d.date,day:d.day||null,gym:d.gym,wt:d.wt,startedAt:d.startedAt||null,endedAt:d.editOf?(d.endedAt||null):new Date().toTimeString().slice(0,5),finished:true,exs};
   const id=d.editOf||d.id;
-  try{ await S.db.doc('sessions/'+id).set(body); if(d.editOf){try{await S.db.doc('sessions/'+d.id).delete()}catch(e){}} toast(d.editOf?'Treino atualizado':'Treino salvo'); S.draft=null;S.editing=false;S.sess[id]=body;S._rev++;location.hash=d.editOf?'#historico':'#hoje';route() }
+  try{ await S.db.doc('sessions/'+id).set(body); if(d.editOf){try{await S.db.doc('sessions/'+d.id).delete()}catch(e){}} toast(d.editOf?'Treino atualizado':'Treino salvo'); S.draft=null;S.editing=false;S.sess[id]=body;S._rev++;location.hash=d.back||(d.editOf?'#historico':'#hoje');route() }
   catch(e){toast('Não salvou: '+(e.code||e.message))}
 }
-async function discardSession(){ const d=S.draft; clearTimeout(saveTimer); S.draft=null;S.editing=false; if(!d.editOf){try{await S.db.doc('sessions/'+d.id).delete()}catch(e){}} route() }
+async function discardSession(){ const d=S.draft; clearTimeout(saveTimer); S.draft=null;S.editing=false; if(!d.editOf){try{await S.db.doc('sessions/'+d.id).delete()}catch(e){}} else {try{await S.db.doc('sessions/'+d.id).delete()}catch(e){} if(d.back) location.hash=d.back} route() }
 
 /* ---------- Histórico ---------- */
 function viewHist(v){
@@ -621,16 +630,20 @@ function viewHist(v){
   v.querySelectorAll('details.sess').forEach(dt=>dt.ontoggle=()=>{if(dt.open)S.histOpen=dt.dataset.sid});
   v.querySelectorAll('[data-wk]').forEach(sel=>sel.onchange=()=>{const ov={...(S.cfg.weekOverrides||{})};ov[sel.dataset.wk]=sel.value;saveCfg({weekOverrides:ov})});
   const more=$('#more'); if(more) more.onclick=()=>{S.histLim=lim+12;route()};
-  v.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{const s=sessionsCached().find(x=>x.id===b.dataset.edit);
-    S.draft={id:'e'+Date.now(),editOf:s.id,date:s.date,day:s.day,gym:s.gym,wt:s.wt||weekType(s.date),startedAt:s.startedAt,finished:false,
-      exs:(s.exs||[]).map(e=>({ex:e.ex,gym:e.gym,mr:e.mr,unit:(e.sets||[]).some(x=>x.u==='lbs')?'lbs':'kg',note:e.note||'',plan:null,sets:(e.sets||[]).map(x=>({kg:x.kg,r:x.r,t:null,done:true}))}))};
-    location.hash='#hoje'});
+  v.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editSession(b.dataset.edit,'#historico'));
   v.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{ if(!b.dataset.armed){b.dataset.armed=1;b.textContent='Toque de novo para apagar';return}
     const id=b.dataset.del; try{await S.db.doc('sessions/'+id).set({deleted:true});S.sess[id]={deleted:true};S._rev++;toast('Treino apagado');route()}catch(e){toast('Não apagou')} });
 }
 function sessVol(s){let v=0;for(const e of s.exs||[]) for(const x of e.sets||[]) if(x.kg!=null&&x.r!=null) v+=toKg(x)*x.r;return v}
 const toKg=x=>x.u==='lbs'?x.kg*0.4536:x.kg;
 
+function editSession(id,back){ const s=sessionsCached().find(x=>x.id===id); if(!s) return;
+  S.draft={id:'e'+Date.now(),editOf:s.id,back,date:s.date,day:s.day||inferDay(s),gym:s.gym,wt:s.wt||weekType(s.date),startedAt:s.startedAt,endedAt:s.endedAt,finished:false,
+    exs:(s.exs||[]).map(e=>({ex:e.ex,gym:e.gym,mr:e.mr,unit:(e.sets||[]).some(x=>x.u==='lbs')?'lbs':'kg',note:e.note||'',plan:null,sets:(e.sets||[]).map(x=>({kg:x.kg,r:x.r,t:null,done:x.r!=null}))}))};
+  location.hash='#hoje'; route() }
+function logPastDay(date,back){ const k=plannedKey(date)||Object.keys(program())[0], gym=ls.get('gym','24h'), wt=weekType(date);
+  S.draft={id:'e'+Date.now(),editOf:'s'+Date.now(),back,date,day:k,gym,wt,finished:false,exs:program()[k].items.map(it=>newExEntry(it,gym,date,wt))};
+  location.hash='#hoje'; route() }
 /* ---------- Progresso ---------- */
 const METRICS={e1rm:'1RM estimado',top:'Carga máxima',vol:'Volume (kg × reps)',reps:'Reps totais',bestReps:'Reps na carga máx.'};
 const GROUPS={session:'Sessão',week:'Microciclo',meso:'Mesociclo',macro:'Macrociclo'};
